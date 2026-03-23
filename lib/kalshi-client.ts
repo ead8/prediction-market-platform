@@ -241,6 +241,7 @@ export async function fetchKalshiMarkets(
     })
     return []
   }
+}
 
 export async function fetchKalshiTrendingMarkets(
   limit: number = 20
