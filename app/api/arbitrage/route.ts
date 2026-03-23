@@ -17,11 +17,15 @@ export async function GET(request: Request) {
       // Fetch from both exchanges in parallel
       ;[polymarkets, kalshiMarkets] = await Promise.all([
         fetchPolymarketMarkets(200).catch((err) => {
-          console.warn('[arbitrage] Polymarket fetch failed:', err)
+          console.warn('[arbitrage] Polymarket fetch failed:', err instanceof Error ? err.message : err)
           return []
         }),
         fetchKalshiMarkets(200).catch((err) => {
-          console.warn('[arbitrage] Kalshi fetch failed:', err)
+          console.error('[arbitrage] Kalshi fetch error:', {
+            message: err instanceof Error ? err.message : String(err),
+            error: err,
+            stack: err instanceof Error ? err.stack : undefined
+          })
           return []
         }),
       ])

@@ -98,15 +98,16 @@ async function fetchKalshiAPI(
 }
 
 export async function fetchKalshiMarkets(
-  limit: number = 100,
-  offset: number = 0
+  limit: number = 100
 ): Promise<KalshiMarket[]> {
+  console.log('[kalshi] fetchKalshiMarkets called with limit:', limit)
   try {
     const data = await fetchKalshiAPI(KALSHI_API, {
       limit,
-      cursor: offset > 0 ? `offset_${offset}` : undefined,
-      status: 'open', // Only get open markets (no auth required)
+      status: 'open',
     })
+    
+    console.log('[kalshi] API response received, type:', typeof data, 'has markets:', !!data?.markets)
 
     // Kalshi returns { markets: [...], cursor: "..." }
     const markets = Array.isArray(data?.markets) ? data.markets : []
@@ -141,8 +142,23 @@ export async function fetchKalshiMarkets(
       }))
     }
 
-    return markets
-      .filter((market: any) => market && market.ticker && (!market.status || market.status === 'open'))
+    console.log(`[kalshi] Pre-filter: ${markets.length} markets`)
+    
+    const filtered = markets.filter((market: any) => {
+      const pass = market && market.ticker && (!market.status || market.status === 'open' || market.status === 'active')
+      if (!pass && markets.length > 0 && markets.indexOf(market) === 0) {
+        console.log('[kalshi] First market filtered out. Market:', JSON.stringify({
+          ticker: market?.ticker,
+          status: market?.status,
+          has_ticker: !!market?.ticker,
+        }))
+      }
+      return pass
+    })
+    
+    console.log(`[kalshi] Post-filter: ${filtered.length} markets (status must be open or active or missing)`)
+    
+    const mapped = filtered
       .slice(0, limit)
       .map((market: any) => {
         // Kalshi prices can be in cents (0-100 integers) or dollars (0.00-1.00 floats)
@@ -176,11 +192,17 @@ export async function fetchKalshiMarkets(
           updatedAt: market.updated_time || new Date().toISOString(),
         }
       })
+    
+    console.log(`[kalshi] Successfully mapped ${mapped.length} markets for return (limit was ${limit})`)
+    return mapped
   } catch (error) {
-    console.warn('[kalshi] Failed to fetch markets:', error instanceof Error ? error.message : error)
+    console.error('[kalshi] ERROR in fetchKalshiMarkets:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      type: error?.constructor?.name,
+    })
     return []
   }
-}
 
 export async function fetchKalshiTrendingMarkets(
   limit: number = 20
@@ -199,7 +221,7 @@ export async function fetchKalshiTrendingMarkets(
 
     // Sort by volume to get trending
     const trending = markets
-      .filter((market: any) => market && market.ticker && (!market.status || market.status === 'open'))
+      .filter((market: any) => market && market.ticker && (!market.status || market.status === 'open' || market.status === 'active'))
       .sort((a: any, b: any) => (b.volume_24h || 0) - (a.volume_24h || 0))
       .slice(0, limit)
       .map((market: any) => {
@@ -248,7 +270,7 @@ export async function searchKalshiMarkets(
     const filtered = markets
       .filter((market: any) =>
         market && 
-        (!market.status || market.status === 'open') &&
+        (!market.status || market.status === 'open' || market.status === 'active') &&
         (market.title?.toLowerCase().includes(query.toLowerCase()) ||
          market.ticker?.toLowerCase().includes(query.toLowerCase()))
       )
