@@ -142,7 +142,7 @@ export async function fetchKalshiMarkets(
     }
 
     return markets
-      .filter((market: any) => market && market.ticker && market.status === 'open')
+      .filter((market: any) => market && market.ticker && (!market.status || market.status === 'open'))
       .slice(0, limit)
       .map((market: any) => {
         // Kalshi prices can be in cents (0-100 integers) or dollars (0.00-1.00 floats)
@@ -199,7 +199,7 @@ export async function fetchKalshiTrendingMarkets(
 
     // Sort by volume to get trending
     const trending = markets
-      .filter((market: any) => market && market.ticker && market.status === 'open')
+      .filter((market: any) => market && market.ticker && (!market.status || market.status === 'open'))
       .sort((a: any, b: any) => (b.volume_24h || 0) - (a.volume_24h || 0))
       .slice(0, limit)
       .map((market: any) => {
@@ -248,7 +248,7 @@ export async function searchKalshiMarkets(
     const filtered = markets
       .filter((market: any) =>
         market && 
-        market.status === 'open' &&
+        (!market.status || market.status === 'open') &&
         (market.title?.toLowerCase().includes(query.toLowerCase()) ||
          market.ticker?.toLowerCase().includes(query.toLowerCase()))
       )

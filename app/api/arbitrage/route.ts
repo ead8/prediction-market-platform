@@ -25,6 +25,8 @@ export async function GET(request: Request) {
           return []
         }),
       ])
+
+      console.log(`[arbitrage] Fetch complete: ${polymarkets.length} Polymarket, ${kalshiMarkets.length} Kalshi`)
     } catch (error) {
       console.error('[arbitrage] Market fetch error:', error)
       return Response.json(
