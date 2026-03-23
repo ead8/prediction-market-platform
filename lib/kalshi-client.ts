@@ -162,17 +162,55 @@ export async function fetchKalshiMarkets(
       .slice(0, limit)
       .map((market: any) => {
         // Kalshi prices can be in cents (0-100 integers) or dollars (0.00-1.00 floats)
-        // Try multiple field names and normalize to 0-1 range
+        // SKIP zero prices - they indicate missing data
         let yesPrice = 0.5
-        if (market.yes_ask !== undefined && market.yes_ask !== null) {
-          // Cent-based (0-100)
+        let priceSource = 'default'
+        
+        // Try yes_bid (cents: 0-100)
+        if (market.yes_bid !== undefined && market.yes_bid !== null && market.yes_bid > 0) {
+          yesPrice = market.yes_bid > 1 ? market.yes_bid / 100 : market.yes_bid
+          priceSource = 'yes_bid'
+        } 
+        // Try yes_ask (cents: 0-100)
+        else if (market.yes_ask !== undefined && market.yes_ask !== null && market.yes_ask > 0) {
           yesPrice = market.yes_ask > 1 ? market.yes_ask / 100 : market.yes_ask
-        } else if (market.yes_ask_dollars !== undefined && market.yes_ask_dollars !== null) {
-          yesPrice = parseFloat(market.yes_ask_dollars)
-        } else if (market.last_price !== undefined && market.last_price !== null) {
+          priceSource = 'yes_ask'
+        } 
+        // Try midpoint of bid/ask
+        else if ((market.yes_bid || market.yes_ask) && (market.yes_bid > 0 || market.yes_ask > 0)) {
+          const bid = market.yes_bid || 50
+          const ask = market.yes_ask || 50
+          yesPrice = ((bid + ask) / 2) / 100
+          priceSource = 'bid_ask_midpoint'
+        }
+        // Try yes_bid_dollars (dollars: 0-1, skip if 0)
+        else if (market.yes_bid_dollars !== undefined && market.yes_bid_dollars !== null) {
+          const parsed = parseFloat(market.yes_bid_dollars)
+          if (parsed > 0 && parsed <= 1) {
+            yesPrice = parsed
+            priceSource = 'yes_bid_dollars'
+          }
+        }
+        // Try yes_ask_dollars (dollars: 0-1, skip if 0)
+        else if (market.yes_ask_dollars !== undefined && market.yes_ask_dollars !== null) {
+          const parsed = parseFloat(market.yes_ask_dollars)
+          if (parsed > 0 && parsed <= 1) {
+            yesPrice = parsed
+            priceSource = 'yes_ask_dollars'
+          }
+        }
+        // Try last_price (cents: 0-100)
+        else if (market.last_price !== undefined && market.last_price !== null && market.last_price > 0) {
           yesPrice = market.last_price > 1 ? market.last_price / 100 : market.last_price
-        } else if (market.last_price_dollars !== undefined && market.last_price_dollars !== null) {
-          yesPrice = parseFloat(market.last_price_dollars)
+          priceSource = 'last_price'
+        } 
+        // Try last_price_dollars (dollars: 0-1, skip if 0)
+        else if (market.last_price_dollars !== undefined && market.last_price_dollars !== null) {
+          const parsed = parseFloat(market.last_price_dollars)
+          if (parsed > 0 && parsed <= 1) {
+            yesPrice = parsed
+            priceSource = 'last_price_dollars'
+          }
         }
 
         const noPrice = 1 - yesPrice

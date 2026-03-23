@@ -114,6 +114,14 @@ export function detectArbitrageOpportunities(
     return []
   }
 
+  // Check price data quality
+  const kalshiWithValidPrices = kalshiMarkets.filter(m => m.yesPrice > 0 && m.yesPrice < 1)
+  console.log(`[arb-engine] Kalshi markets with valid prices (0 < price < 1): ${kalshiWithValidPrices.length}/${kalshiMarkets.length}`)
+  if (kalshiWithValidPrices.length === 0) {
+    console.warn('[arb-engine] WARNING: No Kalshi markets have valid prices! All markets likely have zero pricing data.')
+    console.log('[arb-engine] Sample Kalshi prices:', kalshiMarkets.slice(0, 3).map(m => `${m.id}: yes=${m.yesPrice}, no=${m.noPrice}`))
+  }
+
   // First try exact title matches
   const kalshiMap = new Map(kalshiMarkets.map((m) => [m.title.toLowerCase(), m]))
 
