@@ -215,17 +215,22 @@ export async function fetchKalshiMarkets(
 
         const noPrice = 1 - yesPrice
 
+        // Kalshi API may not return volume/liquidity; use fallback values
+        const volume = market.volume || market.traded_volume || market.open_interest || 1000
+        const volume24h = market.volume_24h || market.traded_volume || market.volume || volume || 1000
+        const liquidity = parseFloat(market.liquidity_dollars || market.liquidity || market.open_interest || '1000')
+
         return {
           id: `kalshi_${market.ticker}`,
           title: market.title || market.ticker || 'Unknown Market',
           description: market.subtitle,
           category: market.category || 'Kalshi',
-          volume: market.volume || 0,
-          volume24h: market.volume_24h || market.volume || 0,
+          volume: volume,
+          volume24h: volume24h,
           yes_price: yesPrice,
           no_price: noPrice,
           price: yesPrice,
-          liquidity: parseFloat(market.liquidity_dollars || market.liquidity || market.open_interest || '0'),
+          liquidity: liquidity > 0 ? liquidity : 1000, // Default to 1000 if missing
           createdAt: market.created_time,
           updatedAt: market.updated_time || new Date().toISOString(),
         }

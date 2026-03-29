@@ -145,7 +145,7 @@ export function detectArbitrageOpportunities(
       const { match, score } = findBestMatch(poly, remainingKalshi)
       kalshi = match
       matchType = 'fuzzy'
-      if (!kalshi || score < 0.4) continue
+      if (!kalshi || score < 0.15) continue  // Lowered from 0.4 to 0.15 since exchanges have very different market themes
     }
 
     if (matchType === 'exact') exactMatches++
@@ -156,8 +156,8 @@ export function detectArbitrageOpportunities(
     // Calculate match score
     const matchScore = calculateTitleSimilarity(poly.title, kalshi.title)
 
-    // Only proceed if confidence is reasonable
-    if (matchScore < 0.25) {
+    // Only proceed if confidence is reasonable (lowered threshold to allow fuzzy matches)
+    if (matchScore < 0.10) {
       skippedLowScore++
       continue
     }
