@@ -1,5 +1,9 @@
 // Arbitrage detection engine for prediction markets
-// Detects profitable opportunities across Polymarket and Kalshi
+// Uses semantic matching to identify same events across exchanges
+// Implements synthetic arbitrage: YES_price1 + NO_price2 < 1.0
+
+import { findSemanticMatches } from './market-matcher'
+import { detectCategory } from './category-system'
 
 interface ArbitrageOpportunity {
   id: string
@@ -11,6 +15,7 @@ interface ArbitrageOpportunity {
   sellExchange: 'polymarket' | 'kalshi'
   buyPrice: number
   sellPrice: number
+  combinedPrice: number
   spreadPercentage: number
   spreadAbsolute: number
   profitMargin: number
@@ -20,6 +25,7 @@ interface ArbitrageOpportunity {
   detectedAt: string
   polymarketId?: string
   kalshiId?: string
+  commonEntities: string[]
 }
 
 interface MarketPrice {
@@ -33,258 +39,128 @@ interface MarketPrice {
   volume24h: number
 }
 
-// Extract key terms from market titles for matching
-function extractKeyTerms(title: string): Set<string> {
-  const terms = title.toLowerCase().split(/\s+/)
-  const keywords = terms
-    .filter((t) => t.length > 3) // Only words longer than 3 chars
-    .map((t) => t.replace(/[^\w]/g, '')) // Remove special chars
-    .filter((t) => !['will', 'the', 'and', 'year', 'before'].includes(t))
-  return new Set(keywords)
-}
-
-// Calculate similarity between two market titles (Jaccard similarity)
-function calculateTitleSimilarity(title1: string, title2: string): number {
-  const terms1 = extractKeyTerms(title1)
-  const terms2 = extractKeyTerms(title2)
-
-  if (terms1.size === 0 || terms2.size === 0) return 0
-
-  const intersection = new Set([...terms1].filter((x) => terms2.has(x)))
-  const union = new Set([...terms1, ...terms2])
-
-  return intersection.size / union.size
-}
-
-// Fuzzy string matching for word boundaries
-function fuzzyMatch(str1: string, str2: string): number {
-  const s1 = str1.toLowerCase()
-  const s2 = str2.toLowerCase()
-
-  // Check for exact substring match
-  if (s1.includes(s2) || s2.includes(s1)) return 0.9
-
-  // Levenshtein-like distance (simplified)
-  let matches = 0
-  const shorter = s1.length < s2.length ? s1 : s2
-  const longer = s1.length >= s2.length ? s1 : s2
-
-  for (let i = 0; i < shorter.length; i++) {
-    if (longer.includes(shorter.charAt(i))) {
-      matches++
-    }
-  }
-
-  return matches / longer.length
-}
-
-// Find best match for a market across exchanges
-function findBestMatch(market: MarketPrice, otherMarkets: MarketPrice[]): { match: MarketPrice | null; score: number } {
-  let bestMatch: MarketPrice | null = null
-  let bestScore = 0
-
-  for (const other of otherMarkets) {
-    // Combine similarity scores
-    const jaccard = calculateTitleSimilarity(market.title, other.title)
-    const fuzzy = fuzzyMatch(market.title, other.title)
-    const categoryMatch = market.category === other.category ? 0.2 : 0
-
-    const combinedScore = jaccard * 0.5 + fuzzy * 0.3 + categoryMatch
-
-    if (combinedScore > bestScore) {
-      bestScore = combinedScore
-      bestMatch = other
-    }
-  }
-
-  // Only return matches with reasonable confidence (>0.3)
-  return bestScore > 0.3 ? { match: bestMatch, score: bestScore } : { match: null, score: 0 }
-}
-
 export function detectArbitrageOpportunities(
   polymarketMarkets: MarketPrice[],
   kalshiMarkets: MarketPrice[]
 ): ArbitrageOpportunity[] {
   const opportunities: ArbitrageOpportunity[] = []
 
-  console.log(`[arb-engine] Starting match: ${polymarketMarkets.length} Polymarket vs ${kalshiMarkets.length} Kalshi`)
+  console.log(`[arb-engine] Starting semantic matching: ${polymarketMarkets.length} Polymarket vs ${kalshiMarkets.length} Kalshi`)
 
   if (kalshiMarkets.length === 0) {
     console.log('[arb-engine] No Kalshi markets to compare')
     return []
   }
 
-  // Check price data quality
-  const kalshiWithValidPrices = kalshiMarkets.filter(m => m.yesPrice > 0 && m.yesPrice < 1)
-  console.log(`[arb-engine] Kalshi markets with valid prices (0 < price < 1): ${kalshiWithValidPrices.length}/${kalshiMarkets.length}`)
-  if (kalshiWithValidPrices.length === 0) {
-    console.warn('[arb-engine] WARNING: No Kalshi markets have valid prices! All markets likely have zero pricing data.')
-    console.log('[arb-engine] Sample Kalshi prices:', kalshiMarkets.slice(0, 3).map(m => `${m.id}: yes=${m.yesPrice}, no=${m.noPrice}`))
-  }
+  // Use semantic matching instead of fuzzy string matching
+  const matches = findSemanticMatches(polymarketMarkets, kalshiMarkets, 0.2)
+  console.log(`[arb-engine] Found ${matches.length} semantically matched market pairs`)
 
-  // First try exact title matches
-  const kalshiMap = new Map(kalshiMarkets.map((m) => [m.title.toLowerCase(), m]))
+  let syntheticArbs = 0
+  let tooHighCombined = 0
+  let lowSimilarity = 0
 
-  // Track already matched markets to avoid duplicates
-  const matchedKalshi = new Set<string>()
-  let exactMatches = 0
-  let fuzzyMatches = 0
-  let skippedLowScore = 0
-  let skippedLowSpread = 0
-  let skippedLowLiquidity = 0
+  for (const match of matches) {
+    const poly = match.polymarket as MarketPrice
+    const kalshi = match.kalshi as MarketPrice
+    const similarity = match.similarity
 
-  for (const poly of polymarketMarkets) {
-    let kalshi = kalshiMap.get(poly.title.toLowerCase())
-    let matchType = 'exact'
-
-    // If no exact match, find best fuzzy match
-    if (!kalshi) {
-      const remainingKalshi = kalshiMarkets.filter(
-        (m) => !matchedKalshi.has(m.id)
-      )
-      const { match, score } = findBestMatch(poly, remainingKalshi)
-      kalshi = match
-      matchType = 'fuzzy'
-      if (!kalshi || score < 0.15) continue  // Lowered from 0.4 to 0.15 since exchanges have very different market themes
-    }
-
-    if (matchType === 'exact') exactMatches++
-    else fuzzyMatches++
-
-    matchedKalshi.add(kalshi.id)
-
-    // Calculate match score
-    const matchScore = calculateTitleSimilarity(poly.title, kalshi.title)
-
-    // Only proceed if confidence is reasonable (lowered threshold to allow fuzzy matches)
-    if (matchScore < 0.10) {
-      skippedLowScore++
+    // Skip if similarity too low
+    if (similarity < 0.2) {
+      lowSimilarity++
       continue
     }
 
-    // Calculate spreads for YES and NO outcomes
-    const yesSpread = Math.abs(poly.yesPrice - kalshi.yesPrice)
-    const noSpread = Math.abs(poly.noPrice - kalshi.noPrice)
+    // Detect synthetic arbitrage: YES_price + NO_price < 1.0
+    // This means you can buy YES on one exchange and NO on the other for profit
+    const polyToKalshiYes = poly.yesPrice + kalshi.noPrice
+    const polyToKalshiNo = poly.noPrice + kalshi.yesPrice
+    const kalshiToPolyYes = kalshi.yesPrice + poly.noPrice
+    const kalshiToPolyNo = kalshi.noPrice + poly.yesPrice
 
-    // Log first few matches for debugging
-    if (exactMatches + fuzzyMatches <= 3) {
-      console.log(`[arb-engine] Match (${matchType}): "${poly.title.substring(0, 40)}" <-> "${kalshi.title.substring(0, 40)}" | poly=${poly.yesPrice.toFixed(3)}/${poly.noPrice.toFixed(3)} kalshi=${kalshi.yesPrice.toFixed(3)}/${kalshi.noPrice.toFixed(3)} | spread=${yesSpread.toFixed(3)}/${noSpread.toFixed(3)} | liq=${poly.liquidity}/${kalshi.liquidity}`)
+    const minCombined = Math.min(polyToKalshiYes, polyToKalshiNo, kalshiToPolyYes, kalshiToPolyNo)
+    const spreadPerc = (1.0 - minCombined) * 100
+
+    // Must have arbitrage spread and reasonable prices
+    if (minCombined >= 0.99 || spreadPerc < 1) {
+      tooHighCombined++
+      continue
     }
 
-    // Check for YES arbitrage (buy on one, sell on other)
-    if (poly.yesPrice < kalshi.yesPrice && yesSpread > 0.01) {
-      const spreadPerc = ((kalshi.yesPrice - poly.yesPrice) / poly.yesPrice) * 100
-      const minLiq = Math.min(poly.liquidity, kalshi.liquidity)
+    syntheticArbs++
 
-      if (spreadPerc > 2 && minLiq >= 0) {
-        // Allow zero liquidity for now since Kalshi liquidity may not be available
-        // Lowered liquidity threshold to allow more matches
-        opportunities.push({
-          id: `arb_poly_kalshi_yes_${poly.id}`,
-          title: `${poly.title} (YES)`,
-          polymarketTitle: poly.title,
-          kalshiTitle: kalshi.title,
-          category: poly.category || kalshi.category,
-          buyExchange: 'polymarket',
-          sellExchange: 'kalshi',
-          buyPrice: poly.yesPrice,
-          sellPrice: kalshi.yesPrice,
-          spreadPercentage: spreadPerc,
-          spreadAbsolute: yesSpread,
-          profitMargin: Math.max(0, spreadPerc - 1), // Account for ~1% fees
-          minLiquidity: minLiq,
-          matchScore,
-          confidence: spreadPerc > 5 ? 'high' : spreadPerc > 3 ? 'medium' : 'low',
-          detectedAt: new Date().toISOString(),
-          polymarketId: poly.id,
-          kalshiId: kalshi.id,
-        })
-      }
-    } else if (kalshi.yesPrice < poly.yesPrice && yesSpread > 0.01) {
-      const spreadPerc = ((poly.yesPrice - kalshi.yesPrice) / kalshi.yesPrice) * 100
-      const minLiq = Math.min(poly.liquidity, kalshi.liquidity)
+    // Determine best arbitrage strategy
+    let bestStrat = null
+    let bestSpread = 0
+    let buyExch = ''
+    let sellExch = ''
+    let buyPrice = 0
+    let sellPrice = 0
 
-      if (spreadPerc > 2) {
-        opportunities.push({
-          id: `arb_kalshi_poly_yes_${kalshi.id}`,
-          title: `${poly.title} (YES)`,
-          polymarketTitle: poly.title,
-          kalshiTitle: kalshi.title,
-          category: poly.category || kalshi.category,
-          buyExchange: 'kalshi',
-          sellExchange: 'polymarket',
-          buyPrice: kalshi.yesPrice,
-          sellPrice: poly.yesPrice,
-          spreadPercentage: spreadPerc,
-          spreadAbsolute: yesSpread,
-          profitMargin: Math.max(0, spreadPerc - 1),
-          minLiquidity: minLiq,
-          matchScore,
-          confidence: spreadPerc > 5 ? 'high' : spreadPerc > 3 ? 'medium' : 'low',
-          detectedAt: new Date().toISOString(),
-          polymarketId: poly.id,
-          kalshiId: kalshi.id,
-        })
-      }
+    if (polyToKalshiYes < minCombined) {
+      minCombined = polyToKalshiYes
+      bestStrat = 'poly_yes_kalshi_no'
+      buyExch = 'polymarket'
+      sellExch = 'kalshi'
+      buyPrice = poly.yesPrice
+      sellPrice = kalshi.noPrice
+    }
+    if (polyToKalshiNo < minCombined) {
+      minCombined = polyToKalshiNo
+      bestStrat = 'poly_no_kalshi_yes'
+      buyExch = 'polymarket'
+      sellExch = 'kalshi'
+      buyPrice = poly.noPrice
+      sellPrice = kalshi.yesPrice
+    }
+    if (kalshiToPolyYes < minCombined) {
+      minCombined = kalshiToPolyYes
+      bestStrat = 'kalshi_yes_poly_no'
+      buyExch = 'kalshi'
+      sellExch = 'polymarket'
+      buyPrice = kalshi.yesPrice
+      sellPrice = poly.noPrice
+    }
+    if (kalshiToPolyNo < minCombined) {
+      minCombined = kalshiToPolyNo
+      bestStrat = 'kalshi_no_poly_yes'
+      buyExch = 'kalshi'
+      sellExch = 'polymarket'
+      buyPrice = kalshi.noPrice
+      sellPrice = poly.yesPrice
     }
 
-    // Check for NO arbitrage
-    if (poly.noPrice < kalshi.noPrice && noSpread > 0.01) {
-      const spreadPerc = ((kalshi.noPrice - poly.noPrice) / poly.noPrice) * 100
+    if (bestStrat && minCombined < 0.99) {
+      const profitPerc = (1.0 - minCombined) * 100
+      const category = detectCategory(poly.title)
       const minLiq = Math.min(poly.liquidity, kalshi.liquidity)
 
-      if (spreadPerc > 2) {
-        opportunities.push({
-          id: `arb_poly_kalshi_no_${poly.id}`,
-          title: `${poly.title} (NO)`,
-          polymarketTitle: poly.title,
-          kalshiTitle: kalshi.title,
-          category: poly.category || kalshi.category,
-          buyExchange: 'polymarket',
-          sellExchange: 'kalshi',
-          buyPrice: poly.noPrice,
-          sellPrice: kalshi.noPrice,
-          spreadPercentage: spreadPerc,
-          spreadAbsolute: noSpread,
-          profitMargin: Math.max(0, spreadPerc - 1),
-          minLiquidity: minLiq,
-          matchScore,
-          confidence: spreadPerc > 5 ? 'high' : spreadPerc > 3 ? 'medium' : 'low',
-          detectedAt: new Date().toISOString(),
-          polymarketId: poly.id,
-          kalshiId: kalshi.id,
-        })
-      }
-    } else if (kalshi.noPrice < poly.noPrice && noSpread > 0.01) {
-      const spreadPerc = ((poly.noPrice - kalshi.noPrice) / kalshi.noPrice) * 100
-      const minLiq = Math.min(poly.liquidity, kalshi.liquidity)
-
-      if (spreadPerc > 2) {
-        opportunities.push({
-          id: `arb_kalshi_poly_no_${kalshi.id}`,
-          title: `${poly.title} (NO)`,
-          polymarketTitle: poly.title,
-          kalshiTitle: kalshi.title,
-          category: poly.category || kalshi.category,
-          buyExchange: 'kalshi',
-          sellExchange: 'polymarket',
-          buyPrice: kalshi.noPrice,
-          sellPrice: poly.noPrice,
-          spreadPercentage: spreadPerc,
-          spreadAbsolute: noSpread,
-          profitMargin: Math.max(0, spreadPerc - 1),
-          minLiquidity: minLiq,
-          matchScore,
-          confidence: spreadPerc > 5 ? 'high' : spreadPerc > 3 ? 'medium' : 'low',
-          detectedAt: new Date().toISOString(),
-          polymarketId: poly.id,
-          kalshiId: kalshi.id,
-        })
-      }
+      opportunities.push({
+        id: `arb_synthetic_${poly.id}_${kalshi.id}`,
+        title: poly.title,
+        polymarketTitle: poly.title,
+        kalshiTitle: kalshi.title,
+        category,
+        buyExchange: buyExch as 'polymarket' | 'kalshi',
+        sellExchange: sellExch as 'polymarket' | 'kalshi',
+        buyPrice,
+        sellPrice,
+        combinedPrice: minCombined,
+        spreadPercentage: profitPerc,
+        spreadAbsolute: 1.0 - minCombined,
+        profitMargin: Math.max(0, profitPerc - 0.5), // Account for ~0.5% fees
+        minLiquidity: minLiq,
+        matchScore: similarity,
+        confidence: profitPerc > 5 ? 'high' : profitPerc > 2 ? 'medium' : 'low',
+        detectedAt: new Date().toISOString(),
+        polymarketId: poly.id,
+        kalshiId: kalshi.id,
+        commonEntities: match.commonEntities,
+      })
     }
   }
 
-  console.log(`[arb-engine] Summary: ${exactMatches} exact + ${fuzzyMatches} fuzzy matches, ${skippedLowScore} low-score skips, ${opportunities.length} opportunities found`)
+  console.log(`[arb-engine] Summary: ${syntheticArbs} synthetic arbitrage opportunities, ${tooHighCombined} too expensive, ${lowSimilarity} low similarity`)
 
   // Sort by profit margin (highest first)
   return opportunities.sort((a, b) => b.profitMargin - a.profitMargin)

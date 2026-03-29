@@ -4,22 +4,28 @@ import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ArrowRightIcon, TrendingUpIcon } from 'lucide-react'
+import { ArrowRightIcon, TrendingUpIcon, AlertCircle, CheckCircle } from 'lucide-react'
+import { CATEGORY_COLORS } from '@/lib/category-system'
 
 interface ArbitrageOpportunity {
   id: string
   title: string
+  polymarketTitle?: string
+  kalshiTitle?: string
   category: string
   buyExchange: 'polymarket' | 'kalshi'
   sellExchange: 'polymarket' | 'kalshi'
   buyPrice: number
   sellPrice: number
+  combinedPrice?: number
   spreadPercentage: number
   spreadAbsolute: number
   profitMargin: number
   minLiquidity: number
   confidence: 'high' | 'medium' | 'low'
+  matchScore?: number
   detectedAt: string
+  commonEntities?: string[]
 }
 
 export function ArbitrageScanner() {
@@ -76,11 +82,15 @@ export function ArbitrageScanner() {
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <TrendingUpIcon className="w-6 h-6 text-chart-2" />
-          <h2 className="text-2xl font-bold">Arbitrage Opportunities</h2>
+          <h2 className="text-2xl font-bold">Synthetic Arbitrage</h2>
         </div>
         <p className="text-muted-foreground">
-          Real-time cross-exchange spread detection for profitable trading
+          Profit from price discrepancies: Buy YES on one exchange and NO on another for the same event
+          when combined price &lt; $1.00
         </p>
+        <div className="text-sm text-muted-foreground italic mt-2 p-3 bg-secondary/30 rounded">
+          Formula: YES_price + NO_price &lt; $1.00 = Arbitrage opportunity
+        </div>
       </div>
 
       {/* Stats */}
@@ -195,28 +205,65 @@ export function ArbitrageScanner() {
           }`}
         >
           <CardHeader className="pb-3">
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <CardTitle className="text-lg text-pretty">{opp.title}</CardTitle>
-                <CardDescription className="capitalize mt-1">
-                  {opp.category}
-                </CardDescription>
+                <div className="flex items-center gap-2 mt-2">
+                  <span 
+                    className="px-2 py-1 rounded text-xs font-bold text-white"
+                    style={{ backgroundColor: CATEGORY_COLORS[opp.category as keyof typeof CATEGORY_COLORS] || '#6B7280' }}
+                  >
+                    {opp.category}
+                  </span>
+                  {opp.matchScore !== undefined && (
+                    <span className="text-xs text-muted-foreground">
+                      Match: {(opp.matchScore * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+                {opp.commonEntities && opp.commonEntities.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {opp.commonEntities.slice(0, 3).map((entity, idx) => (
+                      <span key={idx} className="text-xs bg-secondary/50 px-2 py-1 rounded">
+                        {entity}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className={`px-3 py-1 rounded text-xs font-bold ${getConfidenceColor(opp.confidence)}`}>
-                {opp.confidence.toUpperCase()} {opp.spreadPercentage.toFixed(2)}%
+              <div className={`px-3 py-1 rounded text-xs font-bold whitespace-nowrap ${getConfidenceColor(opp.confidence)}`}>
+                {opp.confidence.toUpperCase()}
+                <div className="text-chart-2 font-bold">{opp.spreadPercentage.toFixed(2)}%</div>
               </div>
             </div>
           </CardHeader>
 
           <CardContent className="space-y-4">
+            {/* Market Title Comparison */}
+            {opp.polymarketTitle && opp.kalshiTitle && opp.polymarketTitle !== opp.kalshiTitle && (
+              <div className="text-sm space-y-2 p-3 bg-secondary/20 rounded">
+                <div className="font-semibold text-muted-foreground">Matched Markets</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="text-xs">
+                    <div className="text-blue-500 font-bold">Polymarket</div>
+                    <div className="text-foreground truncate">{opp.polymarketTitle}</div>
+                  </div>
+                  <div className="text-xs">
+                    <div className="text-purple-500 font-bold">Kalshi</div>
+                    <div className="text-foreground truncate">{opp.kalshiTitle}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Exchange Flow */}
             <div className="flex items-center justify-between gap-2 p-3 bg-secondary/50 rounded-lg">
               <div className="flex-1 space-y-1">
-                <div className="text-xs text-muted-foreground">BUY</div>
+                <div className="text-xs text-muted-foreground">BUY ON</div>
                 <div
                   className={`px-2 py-1 rounded text-sm font-bold inline-block ${getExchangeColor(opp.buyExchange)}`}
                 >
-                  {opp.buyExchange}
+                  {opp.buyExchange === 'polymarket' ? 'Polymarket' : 'Kalshi'}
                 </div>
                 <div className="text-lg font-bold mt-1">
                   ${opp.buyPrice.toFixed(4)}
@@ -226,11 +273,11 @@ export function ArbitrageScanner() {
               <ArrowRightIcon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
 
               <div className="flex-1 space-y-1 text-right">
-                <div className="text-xs text-muted-foreground">SELL</div>
+                <div className="text-xs text-muted-foreground">SELL ON</div>
                 <div
                   className={`px-2 py-1 rounded text-sm font-bold inline-block ${getExchangeColor(opp.sellExchange)}`}
                 >
-                  {opp.sellExchange}
+                  {opp.sellExchange === 'polymarket' ? 'Polymarket' : 'Kalshi'}
                 </div>
                 <div className="text-lg font-bold mt-1">
                   ${opp.sellPrice.toFixed(4)}
@@ -239,7 +286,18 @@ export function ArbitrageScanner() {
             </div>
 
             {/* Metrics */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-2">
+              {opp.combinedPrice !== undefined && (
+                <div className="space-y-1 p-2 bg-secondary/30 rounded">
+                  <div className="text-xs text-muted-foreground">Combined</div>
+                  <div className={`font-bold ${opp.combinedPrice < 1 ? 'text-chart-2' : 'text-chart-4'}`}>
+                    ${opp.combinedPrice.toFixed(4)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    of $1.00
+                  </div>
+                </div>
+              )}
               <div className="space-y-1 p-2 bg-secondary/30 rounded">
                 <div className="text-xs text-muted-foreground">Spread</div>
                 <div className="text-lg font-bold text-chart-2">

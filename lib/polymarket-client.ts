@@ -1,6 +1,8 @@
 // Polymarket REST API client for fetching real market data
 // Polymarket public API: https://gamma-api.polymarket.com
 
+import { detectCategory } from './category-system'
+
 interface PolymarketMarket {
   id: string
   title: string
@@ -236,21 +238,21 @@ export async function fetchPolymarketMarketByID(
       }
     }
 
-    return {
-      id: `polymarket_${market.id}`,
-      title: market.question,
-      description: market.description,
-      category: market.category || 'General',
-      volume: parseFloat(market.volume || '0'),
-      volume24h: parseFloat(market.volume || '0'),
-      bestBid,
-      bestAsk,
-      price: (bestBid + bestAsk) / 2,
-      liquidity: parseFloat(market.liquidity || '0'),
-      createdAt: market.startDate,
-      updatedAt: new Date().toISOString(),
-      outcomePrices: market.outcomePrices,
-    }
+        return {
+          id: `polymarket_${market.id}`,
+          title: market.question,
+          description: market.description,
+          category: detectCategory(market.question || ''),
+          volume: parseFloat(market.volume || '0'),
+          volume24h: parseFloat(market.volume24hr || market.volume || '0'),
+          bestBid,
+          bestAsk,
+          price: (bestBid + bestAsk) / 2,
+          liquidity: parseFloat(market.liquidity || '0'),
+          createdAt: market.startDate,
+          updatedAt: market.updatedAt || new Date().toISOString(),
+          outcomePrices: market.outcomePrices,
+        }
   } catch (error) {
     console.error('[polymarket] Failed to fetch market:', error)
     throw error

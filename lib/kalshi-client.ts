@@ -1,6 +1,8 @@
 // Kalshi REST API client for fetching prediction market data
 // Kalshi API: https://api.elections.kalshi.com/trade-api/v2
 
+import { detectCategory } from './category-system'
+
 interface KalshiMarket {
   id: string
   title: string
@@ -224,7 +226,7 @@ export async function fetchKalshiMarkets(
           id: `kalshi_${market.ticker}`,
           title: market.title || market.ticker || 'Unknown Market',
           description: market.subtitle,
-          category: market.category || 'Kalshi',
+          category: detectCategory(market.title || market.ticker || ''),
           volume: volume,
           volume24h: volume24h,
           yes_price: yesPrice,
