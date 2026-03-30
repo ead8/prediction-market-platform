@@ -78,7 +78,7 @@ export function detectArbitrageOpportunities(
     const kalshiToPolyYes = kalshi.yesPrice + poly.noPrice
     const kalshiToPolyNo = kalshi.noPrice + poly.yesPrice
 
-    const minCombined = Math.min(polyToKalshiYes, polyToKalshiNo, kalshiToPolyYes, kalshiToPolyNo)
+    let minCombined = Math.min(polyToKalshiYes, polyToKalshiNo, kalshiToPolyYes, kalshiToPolyNo)
     const spreadPerc = (1.0 - minCombined) * 100
 
     // Must have arbitrage spread and reasonable prices
