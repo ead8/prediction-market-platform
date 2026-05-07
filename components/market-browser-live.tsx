@@ -6,14 +6,8 @@ import { useRealtime } from '@/hooks/use-realtime'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import {
-  ArrowUpRight,
-  ArrowDownLeft,
-  TrendingUp,
-  Search,
-  Filter,
-  Zap,
-} from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ArrowUpRight, Search, Filter, Zap } from 'lucide-react'
 
 interface Market {
   id: string
@@ -32,28 +26,61 @@ interface PriceUpdate {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
-export function MarketBrowserWithLiveUpdates() {
-  const [search, setSearch] = useState('')
+interface MarketBrowserProps {
+  externalCategory?: string
+  externalSearch?: string
+}
+
+// "Mode" navs from the top bar that translate into a `type` param rather than a category filter.
+const MODE_NAVS = new Set(['trending', 'new'])
+
+export function MarketBrowserWithLiveUpdates({
+  externalCategory,
+  externalSearch,
+}: MarketBrowserProps = {}) {
+  const [localSearch, setLocalSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [sortBy, setSortBy] = useState('volume')
   const [type, setType] = useState('all')
   const [priceUpdates, setPriceUpdates] = useState<PriceUpdate>({})
   const [trendingMarkets, setTrendingMarkets] = useState<any[]>([])
+  // Render timestamp only after mount — avoids SSR/client time mismatch.
+  const [lastUpdated, setLastUpdated] = useState<string>('')
+  useEffect(() => {
+    setLastUpdated(new Date().toLocaleTimeString())
+    const id = setInterval(
+      () => setLastUpdated(new Date().toLocaleTimeString()),
+      30_000,
+    )
+    return () => clearInterval(id)
+  }, [])
+
+  // External (top-of-page) controls override local controls when present.
+  const search = externalSearch || localSearch
+  const effectiveCategory = (() => {
+    if (externalCategory && !MODE_NAVS.has(externalCategory)) return externalCategory
+    return selectedCategory
+  })()
+  const effectiveType = (() => {
+    if (externalCategory === 'trending') return 'trending'
+    if (externalCategory === 'new') return 'new'
+    return type
+  })()
 
   const queryParams = new URLSearchParams()
-  
+
   // Always include type
-  queryParams.set('type', type)
-  
+  queryParams.set('type', effectiveType)
+
   // Add search query if present
   if (search) {
     queryParams.set('type', 'search')
     queryParams.set('q', search)
   }
-  
+
   // Add category filter (even with 'all' type, we can filter by category)
-  if (selectedCategory !== 'all') {
-    queryParams.set('category', selectedCategory)
+  if (effectiveCategory !== 'all') {
+    queryParams.set('category', effectiveCategory)
   }
 
   const { data, isLoading, error } = useSWR(
@@ -125,22 +152,26 @@ export function MarketBrowserWithLiveUpdates() {
       }
     })
 
+  const showLocalSearch = !externalSearch
+
   return (
-    <div className="w-full h-full flex flex-col gap-6 p-6">
+    <div className="w-full h-full flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">
-            Prediction Markets
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Real-time market data from Polymarket & Kalshi
+          <h2 className="text-2xl font-bold text-foreground">
+            {externalCategory && externalCategory !== 'all'
+              ? `${externalCategory.charAt(0).toUpperCase()}${externalCategory.slice(1)} Markets`
+              : 'Prediction Markets'}
+          </h2>
+          <p className="text-muted-foreground text-sm mt-1">
+            Real-time market data from Polymarket &amp; Kalshi
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div
             className={`w-2 h-2 rounded-full ${
-              connected ? 'bg-accent' : 'bg-destructive'
-            } ${connected ? 'animate-pulse' : ''}`}
+              connected ? 'bg-primary pulse-dot' : 'bg-destructive'
+            }`}
           ></div>
           <span className="text-sm text-muted-foreground">
             {connected ? 'Live' : 'Offline'}
@@ -148,81 +179,85 @@ export function MarketBrowserWithLiveUpdates() {
         </div>
       </div>
 
-      {/* Search and Filters */}
+      {/* Filters */}
       <div className="flex flex-col gap-4">
-        <div className="flex gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search markets..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10 bg-secondary text-foreground border-border placeholder-muted-foreground"
-            />
-          </div>
-          <Button
-            variant="outline"
-            className="border-border hover:bg-secondary bg-transparent"
-          >
-            <Filter className="w-4 h-4 mr-2" />
-            Advanced
-          </Button>
-        </div>
-
-        {/* Category Filter */}
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {categories.map((cat) => (
+        {showLocalSearch && (
+          <div className="flex gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search markets..."
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+                className="pl-10 glass text-foreground placeholder:text-muted-foreground"
+              />
+            </div>
             <Button
-              key={cat}
-              variant={selectedCategory === cat ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedCategory(cat)}
-              className={`capitalize whitespace-nowrap ${
-                selectedCategory === cat
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'border-border hover:bg-secondary'
-              }`}
+              variant="outline"
+              className="glass hover:text-primary"
             >
-              {cat}
+              <Filter className="w-4 h-4 mr-2" />
+              Advanced
             </Button>
-          ))}
-        </div>
+          </div>
+        )}
+
+        {/* Sub-category chips derived from current data */}
+        {!externalCategory && (
+          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+            {categories.map((cat) => (
+              <Button
+                key={cat}
+                size="sm"
+                variant="outline"
+                onClick={() => setSelectedCategory(cat)}
+                className={`capitalize whitespace-nowrap ${
+                  selectedCategory === cat
+                    ? 'bg-primary/15 text-primary border-primary/40'
+                    : 'glass'
+                }`}
+              >
+                {cat}
+              </Button>
+            ))}
+          </div>
+        )}
 
         {/* View Options */}
         <div className="flex items-center justify-between text-sm">
           <div className="flex gap-2">
             <Button
-              variant={type === 'all' ? 'default' : 'outline'}
               size="sm"
+              variant="outline"
               onClick={() => setType('all')}
               className={
-                type === 'all'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'border-border'
+                effectiveType === 'all'
+                  ? 'bg-primary/15 text-primary border-primary/40'
+                  : 'glass'
               }
             >
               All
             </Button>
             <Button
-              variant={type === 'trending' ? 'default' : 'outline'}
               size="sm"
+              variant="outline"
               onClick={() => setType('trending')}
               className={
-                type === 'trending'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'border-border'
+                effectiveType === 'trending'
+                  ? 'bg-primary/15 text-primary border-primary/40'
+                  : 'glass'
               }
             >
               Trending
             </Button>
             <Button
-              variant={type === 'movers' ? 'default' : 'outline'}
               size="sm"
+              variant="outline"
               onClick={() => setType('movers')}
               className={
-                type === 'movers'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'border-border'
+                effectiveType === 'movers'
+                  ? 'bg-primary/15 text-primary border-primary/40'
+                  : 'glass'
               }
             >
               Top Movers
@@ -233,7 +268,7 @@ export function MarketBrowserWithLiveUpdates() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="bg-secondary text-foreground border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="glass text-foreground rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
               <option value="volume">Volume</option>
               <option value="price">Price</option>
@@ -245,9 +280,31 @@ export function MarketBrowserWithLiveUpdates() {
 
       {/* Markets Table */}
       <div className="flex-1 overflow-auto">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-muted-foreground">Loading markets...</div>
+        {isLoading && !data ? (
+          <div className="space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Card key={i} className="glass p-4 border">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <div className="flex gap-2">
+                      <Skeleton className="h-4 w-20 rounded-full" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-7 w-20 rounded-full" />
+                  <div className="text-right space-y-1">
+                    <Skeleton className="h-5 w-16 ml-auto" />
+                    <Skeleton className="h-3 w-12 ml-auto" />
+                  </div>
+                  <div className="text-right space-y-1">
+                    <Skeleton className="h-5 w-16 ml-auto" />
+                    <Skeleton className="h-3 w-12 ml-auto" />
+                  </div>
+                  <Skeleton className="h-5 w-5 rounded" />
+                </div>
+              </Card>
+            ))}
           </div>
         ) : error ? (
           <div className="flex items-center justify-center h-full">
@@ -261,61 +318,50 @@ export function MarketBrowserWithLiveUpdates() {
           <div className="space-y-2">
             {sortedMarkets.map((market) => {
               const isUpdated = priceUpdates[market.id] !== undefined
+              const yesCents = Math.round((market.current_price || 0) * 100)
               return (
                 <Card
                   key={market.id}
-                  className={`p-4 bg-card border transition-all ${
-                    isUpdated ? 'border-accent' : 'border-border'
-                  } hover:border-primary cursor-pointer group ${
-                    isUpdated ? 'animate-pulse' : ''
-                  }`}
+                  className={`glass p-4 border transition-all ${
+                    isUpdated ? 'border-primary/60' : ''
+                  } hover:border-primary/50 cursor-pointer group`}
                 >
                   <div className="flex items-center justify-between gap-4">
                     {/* Market Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
-                              {market.title}
-                            </h3>
-                            {isUpdated && (
-                              <Zap className="w-4 h-4 text-accent flex-shrink-0" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1 text-xs">
-                            <span className="px-2 py-1 bg-secondary text-muted-foreground rounded">
-                              {market.category}
-                            </span>
-                            <span className="text-muted-foreground">
-                              {market.source === 'polymarket'
-                                ? 'Polymarket'
-                                : 'Kalshi'}
-                            </span>
-                          </div>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                          {market.title}
+                        </h3>
+                        {isUpdated && (
+                          <Zap className="w-4 h-4 text-primary flex-shrink-0" />
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-xs">
+                        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30">
+                          {market.category}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {market.source === 'polymarket'
+                            ? 'Polymarket'
+                            : 'Kalshi'}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Price */}
+                    {/* Yes price chip — Polymarket-style */}
                     <div className="text-right">
-                      <div
-                        className={`text-lg font-bold transition-colors ${
-                          isUpdated
-                            ? 'text-accent'
-                            : 'text-foreground'
-                        }`}
-                      >
-                        ${(market.current_price || 0).toFixed(2)}
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/15 text-primary border border-primary/40 font-semibold">
+                        Yes {yesCents}¢
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-[10px] text-muted-foreground mt-1">
                         Price
                       </div>
                     </div>
 
                     {/* Volume */}
                     <div className="text-right">
-                      <div className="text-lg font-bold text-chart-2">
+                      <div className="text-lg font-bold text-foreground">
                         ${((market.volume_24h || 0) / 1000).toFixed(1)}K
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -325,7 +371,7 @@ export function MarketBrowserWithLiveUpdates() {
 
                     {/* Liquidity */}
                     <div className="text-right">
-                      <div className="text-lg font-bold text-chart-1">
+                      <div className="text-lg font-bold text-foreground">
                         ${((market.liquidity || 0) / 1000).toFixed(1)}K
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -333,7 +379,6 @@ export function MarketBrowserWithLiveUpdates() {
                       </div>
                     </div>
 
-                    {/* Arrow */}
                     <div className="text-muted-foreground group-hover:text-primary transition-colors">
                       <ArrowUpRight className="w-5 h-5" />
                     </div>
@@ -346,9 +391,9 @@ export function MarketBrowserWithLiveUpdates() {
       </div>
 
       {/* Footer Info */}
-      <div className="text-xs text-muted-foreground">
-        Showing {sortedMarkets.length} of {markets.length} markets • Last
-        updated: {new Date().toLocaleTimeString()}
+      <div className="text-xs text-muted-foreground" suppressHydrationWarning>
+        Showing {sortedMarkets.length} of {markets.length} markets
+        {lastUpdated && <> • Last updated: {lastUpdated}</>}
       </div>
     </div>
   )

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { Card } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   BarChart,
   Bar,
@@ -37,7 +38,8 @@ interface AnalyticsData {
   distribution: any[]
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+// Emerald-leaning palette to match the Polymarket-style theme.
+const COLORS = ['#1ee27a', '#34d399', '#f5b942', '#ff4d6d', '#7c5cff']
 
 export function AnalyticsDashboard() {
   const { data, isLoading, error } = useSWR(
@@ -63,8 +65,36 @@ export function AnalyticsDashboard() {
 
   if (isLoading) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="text-muted-foreground">Loading analytics...</div>
+      <div className="w-full space-y-6">
+        {/* Stats row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[0, 1, 2, 3].map((i) => (
+            <Card key={i} className="glass p-4 space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-8 w-20" />
+            </Card>
+          ))}
+        </div>
+        {/* Charts row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[0, 1].map((i) => (
+            <Card key={i} className="glass p-4 space-y-3">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-64 w-full" />
+            </Card>
+          ))}
+        </div>
+        {/* Table row */}
+        <Card className="glass p-4 space-y-3">
+          <Skeleton className="h-4 w-40" />
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-3">
+              <Skeleton className="h-4 flex-1" />
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          ))}
+        </Card>
       </div>
     )
   }

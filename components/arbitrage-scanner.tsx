@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowRightIcon, TrendingUpIcon } from 'lucide-react'
 
 interface ArbitrageOpportunity {
@@ -18,6 +19,7 @@ interface ArbitrageOpportunity {
   spreadAbsolute: number
   profitMargin: number
   minLiquidity: number
+  liquidityUnknown?: boolean
   confidence: 'high' | 'medium' | 'low'
   detectedAt: string
 }
@@ -66,8 +68,8 @@ export function ArbitrageScanner() {
 
   const getExchangeColor = (exchange: string) => {
     return exchange === 'polymarket'
-      ? 'bg-blue-900/20 text-chart-1'
-      : 'bg-purple-900/20 text-chart-5'
+      ? 'bg-primary/15 text-primary border border-primary/30'
+      : 'bg-chart-5/15 text-chart-5 border border-chart-5/30'
   }
 
   return (
@@ -85,32 +87,25 @@ export function ArbitrageScanner() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-sm text-muted-foreground">Polymarket</div>
-            <div className="text-2xl font-bold">{stats.polymarket_count || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-sm text-muted-foreground">Kalshi</div>
-            <div className="text-2xl font-bold">{stats.kalshi_count || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-sm text-muted-foreground">Matched</div>
-            <div className="text-2xl font-bold">{stats.matched_markets || 0}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-sm text-muted-foreground">Opportunities</div>
-            <div className="text-2xl font-bold text-chart-2">
-              {opportunities.length}
-            </div>
-          </CardContent>
-        </Card>
+        {[
+          { label: 'Polymarket', value: stats.polymarket_count, accent: false },
+          { label: 'Kalshi', value: stats.kalshi_count, accent: false },
+          { label: 'Matched', value: stats.matched_markets, accent: false },
+          { label: 'Opportunities', value: opportunities.length, accent: true },
+        ].map((s) => (
+          <Card key={s.label}>
+            <CardContent className="pt-4">
+              <div className="text-sm text-muted-foreground">{s.label}</div>
+              {isLoading && !data ? (
+                <Skeleton className="h-8 w-16 mt-1" />
+              ) : (
+                <div className={`text-2xl font-bold ${s.accent ? 'text-primary' : ''}`}>
+                  {s.value ?? 0}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Controls */}
@@ -155,13 +150,48 @@ export function ArbitrageScanner() {
         </CardContent>
       </Card>
 
-      {/* Loading State */}
-      {isLoading && (
-        <Card>
-          <CardContent className="pt-6 text-center text-muted-foreground">
-            Scanning for arbitrage opportunities...
-          </CardContent>
-        </Card>
+      {/* Loading State — skeleton opportunity cards */}
+      {isLoading && !data && (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <Card key={i} className="border-l-4 border-l-foreground/10">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <Skeleton className="h-6 w-24 rounded" />
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between gap-2 p-3 bg-secondary/30 rounded-lg">
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-8" />
+                    <Skeleton className="h-6 w-20" />
+                    <Skeleton className="h-5 w-16" />
+                  </div>
+                  <Skeleton className="h-5 w-5 rounded-full" />
+                  <div className="flex-1 space-y-2 flex flex-col items-end">
+                    <Skeleton className="h-3 w-8" />
+                    <Skeleton className="h-6 w-20" />
+                    <Skeleton className="h-5 w-16" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {[0, 1, 2].map((j) => (
+                    <div key={j} className="space-y-2 p-2 bg-secondary/20 rounded">
+                      <Skeleton className="h-3 w-12" />
+                      <Skeleton className="h-6 w-16" />
+                      <Skeleton className="h-3 w-10" />
+                    </div>
+                  ))}
+                </div>
+                <Skeleton className="h-9 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
 
       {/* Error State */}
@@ -174,11 +204,18 @@ export function ArbitrageScanner() {
       )}
 
       {/* Opportunities List */}
-      {!isLoading && opportunities.length === 0 && (
+      {!isLoading && data && opportunities.length === 0 && (
         <Card>
-          <CardContent className="pt-6 text-center text-muted-foreground">
-            No arbitrage opportunities found. Try lowering the minimum spread or wait for
-            new opportunities.
+          <CardContent className="pt-6 pb-6 text-center text-muted-foreground space-y-2">
+            <div className="font-medium text-foreground">
+              No live arbitrage opportunities right now
+            </div>
+            <div className="text-sm max-w-xl mx-auto">
+              We only show pairs that share a category and at least one strong
+              keyword (a name, year, or topic), have real Polymarket liquidity,
+              and an active Kalshi orderbook (bid + ask). Try a lower minimum
+              spread or come back in a few minutes — quotes shift constantly.
+            </div>
           </CardContent>
         </Card>
       )}
@@ -266,7 +303,9 @@ export function ArbitrageScanner() {
                   ${(opp.minLiquidity / 1000).toFixed(0)}K
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  available
+                  {opp.liquidityUnknown
+                    ? 'Polymarket only · Kalshi depth hidden'
+                    : 'min of both sides'}
                 </div>
               </div>
             </div>
