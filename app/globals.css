@@ -3,75 +3,78 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Polymarket-inspired dark + emerald palette.
+   - --background sits behind a layered radial green glow (see body backgrounds below).
+   - --primary / --accent are the same vibrant green so the YES button pops against the dark UI. */
 :root {
-  --background: #0f0f0f;
-  --foreground: #e0e0e0;
-  --card: #1a1a1a;
-  --card-foreground: #e0e0e0;
-  --popover: #1a1a1a;
-  --popover-foreground: #e0e0e0;
-  --primary: #3b82f6;
-  --primary-foreground: #000000;
-  --secondary: #1f2937;
-  --secondary-foreground: #e0e0e0;
-  --muted: #374151;
-  --muted-foreground: #9ca3af;
-  --accent: #10b981;
-  --accent-foreground: #000000;
-  --destructive: #ef4444;
+  --background: #07090a;
+  --foreground: #e8f0ec;
+  --card: rgba(18, 24, 22, 0.72);
+  --card-foreground: #e8f0ec;
+  --popover: #0c1311;
+  --popover-foreground: #e8f0ec;
+  --primary: #1ee27a;
+  --primary-foreground: #04130a;
+  --secondary: #131a18;
+  --secondary-foreground: #d6efe1;
+  --muted: #182121;
+  --muted-foreground: #8aa39a;
+  --accent: #1ee27a;
+  --accent-foreground: #04130a;
+  --destructive: #ff4d6d;
   --destructive-foreground: #ffffff;
-  --border: #2d3748;
-  --input: #1f2937;
-  --ring: #3b82f6;
-  --chart-1: #3b82f6;
-  --chart-2: #10b981;
-  --chart-3: #f59e0b;
-  --chart-4: #ef4444;
-  --chart-5: #8b5cf6;
-  --radius: 0.5rem;
-  --sidebar: #111111;
-  --sidebar-foreground: #e0e0e0;
-  --sidebar-primary: #3b82f6;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #10b981;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #2d3748;
-  --sidebar-ring: #3b82f6;
+  --border: rgba(40, 80, 60, 0.45);
+  --input: rgba(20, 28, 24, 0.85);
+  --ring: #1ee27a;
+  --chart-1: #1ee27a;
+  --chart-2: #34d399;
+  --chart-3: #f5b942;
+  --chart-4: #ff4d6d;
+  --chart-5: #7c5cff;
+  --radius: 0.75rem;
+  --sidebar: #0a0f0d;
+  --sidebar-foreground: #e8f0ec;
+  --sidebar-primary: #1ee27a;
+  --sidebar-primary-foreground: #04130a;
+  --sidebar-accent: #34d399;
+  --sidebar-accent-foreground: #04130a;
+  --sidebar-border: rgba(40, 80, 60, 0.45);
+  --sidebar-ring: #1ee27a;
 }
 
 .dark {
-  --background: #0f0f0f;
-  --foreground: #e0e0e0;
-  --card: #1a1a1a;
-  --card-foreground: #e0e0e0;
-  --popover: #1a1a1a;
-  --popover-foreground: #e0e0e0;
-  --primary: #3b82f6;
-  --primary-foreground: #ffffff;
-  --secondary: #1f2937;
-  --secondary-foreground: #e0e0e0;
-  --muted: #374151;
-  --muted-foreground: #9ca3af;
-  --accent: #10b981;
-  --accent-foreground: #000000;
-  --destructive: #ef4444;
+  --background: #07090a;
+  --foreground: #e8f0ec;
+  --card: rgba(18, 24, 22, 0.72);
+  --card-foreground: #e8f0ec;
+  --popover: #0c1311;
+  --popover-foreground: #e8f0ec;
+  --primary: #1ee27a;
+  --primary-foreground: #04130a;
+  --secondary: #131a18;
+  --secondary-foreground: #d6efe1;
+  --muted: #182121;
+  --muted-foreground: #8aa39a;
+  --accent: #1ee27a;
+  --accent-foreground: #04130a;
+  --destructive: #ff4d6d;
   --destructive-foreground: #ffffff;
-  --border: #2d3748;
-  --input: #1f2937;
-  --ring: #3b82f6;
-  --chart-1: #3b82f6;
-  --chart-2: #10b981;
-  --chart-3: #f59e0b;
-  --chart-4: #ef4444;
-  --chart-5: #8b5cf6;
-  --sidebar: #111111;
-  --sidebar-foreground: #e0e0e0;
-  --sidebar-primary: #3b82f6;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #10b981;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #2d3748;
-  --sidebar-ring: #3b82f6;
+  --border: rgba(40, 80, 60, 0.45);
+  --input: rgba(20, 28, 24, 0.85);
+  --ring: #1ee27a;
+  --chart-1: #1ee27a;
+  --chart-2: #34d399;
+  --chart-3: #f5b942;
+  --chart-4: #ff4d6d;
+  --chart-5: #7c5cff;
+  --sidebar: #0a0f0d;
+  --sidebar-foreground: #e8f0ec;
+  --sidebar-primary: #1ee27a;
+  --sidebar-primary-foreground: #04130a;
+  --sidebar-accent: #34d399;
+  --sidebar-accent-foreground: #04130a;
+  --sidebar-border: rgba(40, 80, 60, 0.45);
+  --sidebar-ring: #1ee27a;
 }
 
 @theme inline {
@@ -119,7 +122,136 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  html,
   body {
-    @apply bg-background text-foreground;
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+
+  /* Layered ambient glow inspired by the reference Polymarket dashboard.
+     A large emerald radial bloom on the left, a subtle teal one on the right,
+     plus a faint star-field grain so the dark background feels alive. */
+  body {
+    position: relative;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(
+        60rem 60rem at -10% 20%,
+        rgba(30, 226, 122, 0.22),
+        rgba(30, 226, 122, 0) 60%
+      ),
+      radial-gradient(
+        45rem 45rem at 110% 80%,
+        rgba(52, 211, 153, 0.12),
+        rgba(52, 211, 153, 0) 65%
+      ),
+      radial-gradient(
+        30rem 30rem at 50% -10%,
+        rgba(124, 92, 255, 0.08),
+        rgba(124, 92, 255, 0) 70%
+      ),
+      linear-gradient(180deg, #050807 0%, #07090a 100%);
+    background-attachment: fixed;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      radial-gradient(
+        1px 1px at 25% 30%,
+        rgba(120, 220, 170, 0.22),
+        transparent 50%
+      ),
+      radial-gradient(
+        1px 1px at 70% 60%,
+        rgba(120, 220, 170, 0.18),
+        transparent 50%
+      ),
+      radial-gradient(
+        1px 1px at 40% 80%,
+        rgba(120, 220, 170, 0.15),
+        transparent 50%
+      ),
+      radial-gradient(
+        1px 1px at 80% 20%,
+        rgba(120, 220, 170, 0.18),
+        transparent 50%
+      ),
+      radial-gradient(
+        1px 1px at 15% 70%,
+        rgba(120, 220, 170, 0.14),
+        transparent 50%
+      );
+    background-repeat: repeat;
+    background-size: 600px 600px;
+    opacity: 0.6;
+    animation: drift 60s linear infinite;
+  }
+
+  /* Subtle slow-drift on the star layer so it feels organic */
+  @keyframes drift {
+    0% {
+      transform: translate3d(0, 0, 0);
+    }
+    100% {
+      transform: translate3d(-40px, -30px, 0);
+    }
+  }
+
+  /* Make app content sit above the ambient layer */
+  main,
+  #__next > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+@layer components {
+  /* Frosted "glass" surface that picks up the emerald glow behind it. */
+  .glass {
+    background: rgba(14, 20, 18, 0.55);
+    border: 1px solid rgba(40, 80, 60, 0.4);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+
+  /* Reusable emerald glow ring for hero buttons */
+  .glow-primary {
+    box-shadow:
+      0 0 0 1px rgba(30, 226, 122, 0.35),
+      0 8px 30px -8px rgba(30, 226, 122, 0.55),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  /* Hide scrollbars on horizontal nav strips while still allowing scroll */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Soft pulse for "live" indicators */
+  .pulse-dot {
+    box-shadow: 0 0 0 0 rgba(30, 226, 122, 0.7);
+    animation: pulseDot 2s infinite;
+  }
+
+  @keyframes pulseDot {
+    0% {
+      box-shadow: 0 0 0 0 rgba(30, 226, 122, 0.6);
+    }
+    70% {
+      box-shadow: 0 0 0 12px rgba(30, 226, 122, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(30, 226, 122, 0);
+    }
   }
 }

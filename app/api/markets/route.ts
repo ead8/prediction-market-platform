@@ -38,7 +38,7 @@ export async function GET(request: Request) {
         ])
       } else if (type === 'movers') {
         ;[polymarkets, kalshiMarkets] = await Promise.all([
-          fetchPolymarketMarkets(100).catch(() => []),
+          fetchPolymarketMarkets(200, 0, category && category !== 'all' ? category : undefined).catch(() => []),
           fetchKalshiMarkets(100).catch(() => []),
         ])
       } else if (type === 'trending') {
@@ -46,10 +46,26 @@ export async function GET(request: Request) {
           fetchPolymarketTrendingMarkets(50).catch(() => []),
           fetchKalshiTrendingMarkets(50).catch(() => []),
         ])
-      } else {
+      } else if (type === 'new') {
+        // "New" = recently created markets, sorted by createdAt desc
         ;[polymarkets, kalshiMarkets] = await Promise.all([
           fetchPolymarketMarkets(100).catch(() => []),
           fetchKalshiMarkets(100).catch(() => []),
+        ])
+        // Sort by createdAt descending after fetch
+        const byCreated = (a: any, b: any) =>
+          new Date(b.createdAt || 0).getTime() -
+          new Date(a.createdAt || 0).getTime()
+        polymarkets = polymarkets.sort(byCreated).slice(0, 30)
+        kalshiMarkets = kalshiMarkets.sort(byCreated).slice(0, 30)
+      } else {
+        ;[polymarkets, kalshiMarkets] = await Promise.all([
+          fetchPolymarketMarkets(
+            300,
+            0,
+            category && category !== 'all' ? category : undefined,
+          ).catch(() => []),
+          fetchKalshiMarkets(150).catch(() => []),
         ])
       }
 

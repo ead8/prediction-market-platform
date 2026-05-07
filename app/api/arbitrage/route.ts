@@ -20,7 +20,10 @@ export async function GET(request: Request) {
           console.warn('[arbitrage] Polymarket fetch failed:', err)
           return []
         }),
-        fetchKalshiMarkets(200).catch((err) => {
+        // Pull a wide Kalshi pool: Polymarket's top markets and Kalshi's top
+        // markets cover very different topics, so to find any overlap we need
+        // to scan the full standalone-market catalog.
+        fetchKalshiMarkets(3000).catch((err) => {
           console.warn('[arbitrage] Kalshi fetch failed:', err)
           return []
         }),
@@ -59,27 +62,36 @@ export async function GET(request: Request) {
       }))
     }
 
-    // Normalize market data for arbitrage detection
-    const polymarketPrices = polymarkets.map((m) => ({
-      id: m.id,
-      source: 'polymarket' as const,
-      title: m.title,
-      category: m.category || 'General',
-      yesPrice: m.bestBid || m.price || 0.5,
-      noPrice: m.bestAsk || (1 - (m.price || 0.5)) || 0.5,
-      liquidity: m.liquidity || 0,
-      volume24h: m.volume24h || 0,
-    }))
+    // Normalize market data for arbitrage detection.
+    // bestBid is now the actual YES price (from outcomePrices[0]); bestAsk is NO (outcomePrices[1]).
+    const polymarketPrices = polymarkets.map((m) => {
+      const yes = typeof m.bestBid === 'number' ? m.bestBid : (m.price ?? 0.5)
+      const no =
+        typeof m.bestAsk === 'number'
+          ? m.bestAsk
+          : 1 - (m.price ?? 0.5)
+      return {
+        id: m.id,
+        source: 'polymarket' as const,
+        title: m.title,
+        category: m.category || 'General',
+        yesPrice: yes,
+        noPrice: no,
+        liquidity: m.liquidity || 0,
+        volume24h: m.volume24h || 0,
+      }
+    })
 
     const kalshiPrices = kalshiMarkets.map((m) => ({
       id: m.id,
       source: 'kalshi' as const,
       title: m.title,
       category: m.category || 'General',
-      yesPrice: m.yes_price || m.price || 0.5,
-      noPrice: m.no_price || (1 - (m.price || 0.5)),
+      yesPrice: m.yes_price ?? m.price ?? 0.5,
+      noPrice: m.no_price ?? 1 - (m.price ?? 0.5),
       liquidity: m.liquidity || 0,
       volume24h: m.volume24h || 0,
+      tradeable: m.tradeable === true,
     }))
 
     // Detect arbitrage opportunities
